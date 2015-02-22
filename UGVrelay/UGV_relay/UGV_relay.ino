@@ -1,20 +1,38 @@
-//#include <SofwareSerial.h>
+/*
+UGV Relay Driver
+CREATE UNSW
+Written by: Austin Kong, Nathan Adler
+First written:  2015 02 22
+Last modified: 2015 02 22
 
-#define LEFT_REV 2//left
-#define RGHT_FWD 3//right
-#define BRAKES   4//brake
-#define UNK      5//??
-#define RGHT_REV 6//right
-#define LEFT_FWD 7//left
+Drives the UGV through an improvised motor driver using only relays.
+Use of relays means there is no speed control.
+PCB by William Hales 
+
+Wired version, communicates over serial comms.
+Shouldn't take too much to modify it so it can operate over Bluetooth that uses serial.
+
+*/
+
+#include <SoftwareSerial.h>
+
+//Relay pin definitoins
+#define LEFT_REV 2
+#define RGHT_FWD 3
+#define BRAKES   4
+#define UNK      5 // Spare pin
+#define RGHT_REV 6
+#define LEFT_FWD 7
 
 void setup() {
-  // put your setup code here, to run once:
-  Serial.begin(115200);
+  Serial.begin(57600);
+  
+  //Setup pins
   pinMode(LEFT_FWD,OUTPUT);
   pinMode(LEFT_REV,OUTPUT);
   pinMode(RGHT_FWD,OUTPUT);
   pinMode(RGHT_REV,OUTPUT);
-  pinMode(BRAKES,OUTPUT);
+  pinMode(BRAKES,OUTPUT); // Brakes latch when pulled high
   pinMode(UNK,OUTPUT);
   digitalWrite(LEFT_FWD,LOW);
   digitalWrite(LEFT_REV,LOW);
@@ -28,9 +46,9 @@ char in;
 unsigned long lastCommand;
 
 void loop() {
-  // put your main code here, to run repeatedly:
   if(Serial.available()) {
     while(Serial.available()){
+      // Always flush out the buffer first
       in = Serial.read();
     }
     switch (in) {
@@ -67,6 +85,7 @@ void loop() {
         break;
     }
   } else if ((millis() - lastCommand) > 100) {
+    // Resets driving state to stopped if no command is recieved
     lastCommand = millis();
     digitalWrite(LEFT_FWD,LOW);
     digitalWrite(LEFT_REV,LOW);
