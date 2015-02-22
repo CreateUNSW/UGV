@@ -35,58 +35,89 @@ void setup(){
   radio.openReadingPipe(1,pipes[0]);
   radio.setChannel(65);
   radio.startListening();
+  
+  lastCommand = millis();
 }
 
 void loop(){
   int i;
-  while(!radio.available()){}
-  while(!radio.read(text,4)){}
-  for(i=0;i<strlen(text);i++){
-    Serial.print(text[i]);
+  if(radio.available()){
+    while(!radio.read(text,4)){}
+    for(i=0;i<strlen(text);i++){
+      Serial.print(text[i]);
+    }
+    Serial.print('!');
+    switch (text[0]) {
+      case 'w':
+        lastCommand = millis();
+        go_forward();
+        Serial.println("FWD");
+        break;
+      case 's'://
+        lastCommand = millis();
+        go_backward();
+        Serial.println("REV");
+        break;
+      case 'a'://
+        lastCommand = millis();
+        go_left();
+        Serial.println("LFT");
+        break;
+      case 'd'://
+        lastCommand = millis();
+        go_right();
+        Serial.println("RGT");
+        break;
+      /*case 'q':
+        digitalWrite(BRAKES,HIGH);
+        break;
+      case 'e':
+        digitalWrite(UNK,HIGH);*/
+      default:
+        //stop_driving();
+        Serial.println("Nothing");
+        break;
+    }
+  } else if(millis()-lastCommand>400){
+    stop_driving();
+    lastCommand = millis();
   }
-  Serial.print('!');
-  switch (text[0]) {
-    case 'w':
-      digitalWrite(LEFT_FWD,HIGH);
-      digitalWrite(LEFT_REV,LOW);
-      digitalWrite(RGHT_FWD,HIGH);
-      digitalWrite(RGHT_REV,LOW);
-      Serial.println("FWD");
-      break;
-    case 's'://
-      digitalWrite(LEFT_FWD,LOW);
-      digitalWrite(LEFT_REV,HIGH);
-      digitalWrite(RGHT_FWD,LOW);
-      digitalWrite(RGHT_REV,HIGH);
-      Serial.println("REV");
-      break;
-    case 'a'://
-      digitalWrite(LEFT_FWD,LOW);
-      digitalWrite(LEFT_REV,HIGH);
-      digitalWrite(RGHT_FWD,HIGH);
-      digitalWrite(RGHT_REV,LOW);
-      Serial.println("LFT");
-      break;
-    case 'd'://
-      digitalWrite(LEFT_FWD,HIGH);
-      digitalWrite(LEFT_REV,LOW);
-      digitalWrite(RGHT_FWD,LOW);
-      digitalWrite(RGHT_REV,HIGH);
-      Serial.println("RGT");
-      break;
-    /*case 'q':
-      digitalWrite(BRAKES,HIGH);
-      break;
-    case 'e':
-      digitalWrite(UNK,HIGH);*/
-    default:
-      digitalWrite(LEFT_FWD,LOW);
-      digitalWrite(LEFT_REV,LOW);
-      digitalWrite(RGHT_FWD,LOW);
-      digitalWrite(RGHT_REV,LOW);
-      digitalWrite(BRAKES,LOW);
-      digitalWrite(UNK,LOW);
-      Serial.println("Nothing");
-      break;
-  }
+    
+}
+
+void go_forward(){
+  digitalWrite(LEFT_FWD,HIGH);
+  digitalWrite(LEFT_REV,LOW);
+  digitalWrite(RGHT_FWD,HIGH);
+  digitalWrite(RGHT_REV,LOW);
+}
+
+void go_backward(){
+  digitalWrite(LEFT_FWD,LOW);
+  digitalWrite(LEFT_REV,HIGH);
+  digitalWrite(RGHT_FWD,LOW);
+  digitalWrite(RGHT_REV,HIGH);
+}
+
+void go_left(){
+  digitalWrite(LEFT_FWD,LOW);
+  digitalWrite(LEFT_REV,HIGH);
+  digitalWrite(RGHT_FWD,HIGH);
+  digitalWrite(RGHT_REV,LOW);
+}
+
+void go_right(){
+  digitalWrite(LEFT_FWD,HIGH);
+  digitalWrite(LEFT_REV,LOW);
+  digitalWrite(RGHT_FWD,LOW);
+  digitalWrite(RGHT_REV,HIGH);
+}
+
+void stop_driving(){
+  digitalWrite(LEFT_FWD,LOW);
+  digitalWrite(LEFT_REV,LOW);
+  digitalWrite(RGHT_FWD,LOW);
+  digitalWrite(RGHT_REV,LOW);
+  digitalWrite(BRAKES,LOW);
+  digitalWrite(UNK,LOW);
 }
