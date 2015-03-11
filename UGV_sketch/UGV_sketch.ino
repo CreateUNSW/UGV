@@ -8,11 +8,15 @@
 #include <stdbool.h>
 #include <string.h>
 
-#define LEFT_MOTOR_PIN1  2
-#define LEFT_MOTOR_PIN2  3
+#include <SPI.h>
+#include "nRF24L01.h"
+#include "RF24.h"
 
-#define RIGHT_MOTOR_PIN1  4
-#define RIGHT_MOTOR_PIN2  5
+#define LEFT_MOTOR_DIR_PIN  2
+#define LEFT_MOTOR_PWM_PIN  3
+
+#define RIGHT_MOTOR_DIR_PIN  4
+#define RIGHT_MOTOR_PWM_PIN  5
 
 #define LEFT_BRAKE_PIN  6
 #define RIGHT_BRAKE_PIN  7
@@ -43,12 +47,20 @@ typedef struct {
   motor_state_t rightMotor;
 } ugv_state_t;
 
+typedef struct {
+  uint16_t rawMag;
+  uint16_t rawAngle;
+} rf_data_t;
+
 static speed_scale_t currentSpeed = SLOWEST;
 static joystick_t currentJoystick;
 static ugv_state_t currentUGV;
 static ugv_state_t desiredUGV;
 static bool joystickReleased = true;
 static bool brakeState = true;
+
+RF24 radio(9,10);
+const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
 
 /**Function declarations**/
 void error_check(error_t code);
@@ -135,10 +147,10 @@ void desired_to_current_ugv(ugv_state_t *from,ugv_state_t *to){
 /**Initialization code**/
 
 error_t init_motors(){
-  pinMode(LEFT_MOTOR_PIN1,OUTPUT);
-  pinMode(LEFT_MOTOR_PIN2,OUTPUT);
-  pinMode(RIGHT_MOTOR_PIN1,OUTPUT);
-  pinMode(RIGHT_MOTOR_PIN2,OUTPUT);
+  pinMode(LEFT_MOTOR_DIR_PIN,OUTPUT);
+  pinMode(LEFT_MOTOR_PWM_PIN,OUTPUT);
+  pinMode(RIGHT_MOTOR_DIR_PIN,OUTPUT);
+  pinMode(RIGHT_MOTOR_PWM_PIN,OUTPUT);
   //insert motor test checks here
   /**Initialize current motor state**/
   currentUGV.leftMotor.direction = FORWARD;
@@ -161,6 +173,12 @@ error_t init_joystick(){
   //insert joystick init code here
   currentJoystick.angle = 0;
   currentJoystick.magnitude = 0;
+  // Setup radio
+  radio.begin(); 
+  //radio.openWritingPipe(pipes[1]);
+  radio.openReadingPipe(1,pipes[0]);
+  radio.setChannel(65);
+  radio.startListening();
   //insert joystick test checks here
   return SUCCESS;
 }
@@ -168,25 +186,24 @@ error_t init_joystick(){
 /**Motor driving code**/
 
 void motor_out(motor_state_t motor, motor_type_t type){
-  uint8_t pin1,pin2;
+  uint8_t dirPin,pwmPin;
   uint8_t speedVal;
   if(type==LEFT){
-    pin1 = LEFT_MOTOR_PIN1;
-    pin2 = LEFT_MOTOR_PIN2;
+    dirPin = LEFT_MOTOR_DIR_PIN;
+    pwmPin = LEFT_MOTOR_PWM_PIN;
   } else if(type==RIGHT){
-    pin1 = RIGHT_MOTOR_PIN1;
-    pin2 = RIGHT_MOTOR_PIN2;
+    dirPin = RIGHT_MOTOR_DIR_PIN;
+    pwmPin = RIGHT_MOTOR_PWM_PIN;
   } else {
     return;
   }
   speedVal = convert_speed(motor.speed);
   if(motor.direction==FORWARD){
-    analogWrite(pin1,speedVal);
-    digitalWrite(pin2,LOW);
+    digitalWrite(dirPin,HIGH);
   } else if(motor.direction==REVERSE){
-    analogWrite(pin2,speedVal);
-    digitalWrite(pin1,LOW);
-  }   
+    digitalWrite(dirPin,LOW);
+  }
+  analogWrite(pwmPin,speedVal);
 }
 
 uint8_t convert_speed(float speed){
@@ -195,10 +212,8 @@ uint8_t convert_speed(float speed){
 }
 
 void motors_off(){
-  digitalWrite(LEFT_MOTOR_PIN1,LOW);
-  digitalWrite(LEFT_MOTOR_PIN2,LOW);
-  digitalWrite(RIGHT_MOTOR_PIN1,LOW);
-  digitalWrite(RIGHT_MOTOR_PIN2,LOW);
+  digitalWrite(LEFT_MOTOR_PWM_PIN,LOW);
+  digitalWrite(RIGHT_MOTOR_PWM_PIN,LOW);
 }
 
 void change_speed(speed_scale_t newSpeed){
@@ -247,4 +262,10 @@ void get_joystick(joystick_t *joystick){
   //note: must read magntitude scale 0-1 and
   //angle in radians where 0 is directly to the right,
   //going anticlockwise (conventional)
+  if(radio.available()){
+    rf_data_t rfData;
+    while(!radio.read(&rfData,4)){}
+    joystick->magnitude = (float)rfData.rawMag/65535;
+    joystick->angle = ((float)rfData.rawAngle/65535)*2*PI;
+  }
 }
