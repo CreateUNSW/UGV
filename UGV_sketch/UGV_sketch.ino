@@ -1,8 +1,8 @@
 /**
-* UGV driving framework to replace properietary motor controlling system
-* Written by: Nathan Adler
-* Last modified: 21/2/2015
-**/
+ * UGV driving framework to replace properietary motor controlling system
+ * Written by: Nathan Adler
+ * Last modified: 21/2/2015
+ **/
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -12,47 +12,59 @@
 #include "nRF24L01.h"
 #include "RF24.h"
 
-#define LEFT_MOTOR_DIR_PIN  2
-#define LEFT_MOTOR_PWM_PIN  3
+#define LEFT_MOTOR_DIR_PIN  4
+#define LEFT_MOTOR_PWM_PIN  5
 
-#define RIGHT_MOTOR_DIR_PIN  4
-#define RIGHT_MOTOR_PWM_PIN  5
+#define RIGHT_MOTOR_DIR_PIN  2
+#define RIGHT_MOTOR_PWM_PIN  3
 
 #define LEFT_BRAKE_PIN  6
 #define RIGHT_BRAKE_PIN  7
 
-typedef enum {SLOWEST=51,
-              SLOW=102,
-              MEDIUM=153,
-              FAST=204,
-              FASTEST=255} speed_scale_t;
-              
-typedef enum {FORWARD,REVERSE} direction_t;
-typedef enum {LEFT,RIGHT} motor_type_t;
+typedef enum {
+  SLOWEST=51,
+  SLOW=102,
+  MEDIUM=153,
+  FAST=204,
+  FASTEST=255} 
+speed_scale_t;
 
-typedef enum {SUCCESS, DISCONNECT, FAULT, UNKNOWN} error_t;
+typedef enum {
+  FORWARD,REVERSE} 
+direction_t;
+typedef enum {
+  LEFT,RIGHT} 
+motor_type_t;
+
+typedef enum {
+  SUCCESS, DISCONNECT, FAULT, UNKNOWN} 
+error_t;
 
 typedef struct {
   float angle; //0-2*PI radians
   float magnitude;//0-1.0
-} joystick_t;
+} 
+joystick_t;
 
 typedef struct {
   float speed;//0-1.0
   direction_t direction;//forward or reverse
-} motor_state_t;
+} 
+motor_state_t;
 
 typedef struct {
   motor_state_t leftMotor;
   motor_state_t rightMotor;
-} ugv_state_t;
+} 
+ugv_state_t;
 
 typedef struct {
   float rawMag;
   float rawAngle;
-} rf_data_t;
+} 
+rf_data_t;
 
-static speed_scale_t currentSpeed = SLOWEST;
+static speed_scale_t currentSpeed = FASTEST;
 static joystick_t currentJoystick;
 static ugv_state_t currentUGV;
 static ugv_state_t desiredUGV;
@@ -61,7 +73,8 @@ static bool brakeState = true;
 static unsigned long lastJoystickCommand;
 
 RF24 radio(9,10);
-const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
+const uint64_t pipes[2] = { 
+  0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
 
 /**Function declarations**/
 void error_check(error_t code);
@@ -87,10 +100,11 @@ void error_check(error_t code){
     // stop program from continuing
     motors_off();
     brakes_engage();
-    while(1){}
+    while(1){
+    }
   }
 }
-  
+
 void setup(){
   /**Initialize hardware**/
   error_t errorCode;
@@ -100,7 +114,7 @@ void setup(){
   error_check(errorCode);
   errorCode = init_joystick();
   error_check(errorCode);
-  
+
   /**Initialize desired state**/
   desiredUGV.leftMotor.speed = 0;
   desiredUGV.leftMotor.direction = FORWARD;
@@ -110,30 +124,31 @@ void setup(){
   delay(2000);
 }
 
+
+unsigned long joystickReleaseTime;
+
 void loop(){
-  unsigned long joystickReleaseTime;
-  while(1){
-    get_joystick(&currentJoystick);
-    if(currentJoystick.magnitude==0){
-      motors_off();
-      if(joystickReleased==false){
-        joystickReleaseTime = millis();
-        joystickReleased = true;
-      }
-      if(brakeState==false&&millis()-joystickReleaseTime>400){
-        brakes_engage();
-      }      
-    } else {
-      joystickReleased = false;  
-      joystick_to_ugv(currentJoystick,&desiredUGV);
-      desired_to_current_ugv(&desiredUGV,&currentUGV);
-      move_ugv(currentUGV);
+  get_joystick(&currentJoystick);
+  if(currentJoystick.magnitude==0){
+    motors_off();
+    if(joystickReleased==false){
+      joystickReleaseTime = millis();
+      joystickReleased = true;
     }
-    Serial.print(currentJoystick.angle);
-    Serial.print("    ");
-    Serial.println(currentJoystick.magnitude);
-    //delay(100);
+    if(brakeState==false&&millis()-joystickReleaseTime>400){
+      brakes_engage();
+    }      
+  } 
+  else {
+    joystickReleased = false;  
+    joystick_to_ugv(currentJoystick,&desiredUGV);
+    desired_to_current_ugv(&desiredUGV,&currentUGV);
+    move_ugv(currentUGV);
   }
+  //serial.print(currentJoystick.angle);
+  //serial.print("    ");
+  //serial.println(currentJoystick.magnitude);
+  delay(100);
 }
 
 void move_ugv(ugv_state_t ugv){
@@ -198,16 +213,19 @@ void motor_out(motor_state_t motor, motor_type_t type){
   if(type==LEFT){
     dirPin = LEFT_MOTOR_DIR_PIN;
     pwmPin = LEFT_MOTOR_PWM_PIN;
-  } else if(type==RIGHT){
+  } 
+  else if(type==RIGHT){
     dirPin = RIGHT_MOTOR_DIR_PIN;
     pwmPin = RIGHT_MOTOR_PWM_PIN;
-  } else {
+  } 
+  else {
     return;
   }
   speedVal = convert_speed(motor.speed);
   if(motor.direction==FORWARD){
     digitalWrite(dirPin,HIGH);
-  } else if(motor.direction==REVERSE){
+  } 
+  else if(motor.direction==REVERSE){
     digitalWrite(dirPin,LOW);
   }
   analogWrite(pwmPin,speedVal);
@@ -245,23 +263,54 @@ void brakes_disengage(){
 /**Joystick code**/
 
 void joystick_to_ugv(joystick_t joystick, ugv_state_t *ugv){
-  if(sin(joystick.angle)>=0){
-    ugv->leftMotor.direction = FORWARD;
+  float pi = 3.14159265;
+  if (joystick.angle >= 0 && joystick.angle < pi/2){
+    // QUADRANT ONE
+    // forward left
     ugv->rightMotor.direction = FORWARD;
-  } else {
+    ugv->rightMotor.speed = 1;
+    if (joystick.angle < pi/4){
+      ugv->leftMotor.direction = FORWARD;
+    } else {
+      ugv->leftMotor.direction = REVERSE;
+    }
+    ugv->leftMotor.speed = abs(joystick.angle-pi/4)/(pi/4);
+  } else if (joystick.angle >= pi/2 && joystick.angle <= pi){
+    // QUADRANT 2
+    // back left
     ugv->leftMotor.direction = REVERSE;
+    ugv->leftMotor.speed = 1;
+    if (joystick.angle < 3*pi/4){
+      ugv->rightMotor.direction = FORWARD;
+    } else {
+      ugv->rightMotor.direction = REVERSE;
+    }
+    ugv->rightMotor.speed = abs(joystick.angle-3*pi/4)/(pi/4);
+  } else if (joystick.angle >= -pi/2 && joystick.angle < 0){
+    // QUADRANT 4
+    // forward right
+    ugv->leftMotor.direction = FORWARD;
+    ugv->leftMotor.speed = 1;
+    if (joystick.angle > -pi/4){
+      ugv->rightMotor.direction = FORWARD;
+    } else {
+      ugv->rightMotor.direction = REVERSE;
+    }
+    ugv->rightMotor.speed = abs(joystick.angle+pi/4)/(pi/4);
+  } else  if (joystick.angle >= -pi && joystick.angle < -pi/2){
+    // QUADRANT 3
+    // back right
     ugv->rightMotor.direction = REVERSE;
-  }
-  if(cos(joystick.angle)>0){
-    ugv->leftMotor.speed = 1;
-    ugv->rightMotor.speed = cos(joystick.angle);
-  } else if(cos(joystick.angle<0)){
     ugv->rightMotor.speed = 1;
-    ugv->leftMotor.speed = abs(cos(joystick.angle));
-  } else {
-    ugv->leftMotor.speed = 1;
-    ugv->rightMotor.speed = 1;
-  }
+    if (joystick.angle > -3*pi/4){
+      ugv->leftMotor.direction = FORWARD;
+    } else {
+      ugv->leftMotor.direction = REVERSE;
+    }
+    ugv->leftMotor.speed = abs(joystick.angle+3*pi/4)/(pi/4);
+  } 
+  
+
 }
 
 void get_joystick(joystick_t *joystick){
@@ -270,13 +319,16 @@ void get_joystick(joystick_t *joystick){
   //angle in radians where 0 is directly to the right,
   //going anticlockwise (conventional)
   if(radio.available()){
-    Serial.println("received");
+    //serial.println("received");
     rf_data_t rfData;
-    while(!radio.read(&rfData,8)){}
+    while(!radio.read(&rfData,8)){
+    }
     joystick->magnitude = rfData.rawMag;
     joystick->angle = rfData.rawAngle;
     lastJoystickCommand = millis();
-  } else if(lastJoystickCommand-millis()>400){
+  } 
+  else if(lastJoystickCommand-millis()>400){
     joystick->magnitude = 0;
   }
 }
+
