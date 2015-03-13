@@ -1,0 +1,28 @@
+###################################
+# Syntax Coloring Map For Create
+###################################
+
+###################################
+# Datatypes (KEYWORD1)
+###################################
+
+Motor	KEYWORD1
+Ultrasonic	KEYWORD1
+Compass	KEYWORD1
+
+###################################
+# Methods and Functions (KEYWORD2)
+###################################
+
+drive	KEYWORD2
+off	KEYWORD2
+init	KEYWORD2
+getHeading	KEYWORD2
+ping_cm	KEYWORD2
+
+###################################
+# Constants (LITERAL1)
+###################################
+
+FWD	LITERAL1
+REV	LITERAL1
