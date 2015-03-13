@@ -48,8 +48,8 @@ typedef struct {
 } ugv_state_t;
 
 typedef struct {
-  uint16_t rawMag;
-  uint16_t rawAngle;
+  float rawMag;
+  float rawAngle;
 } rf_data_t;
 
 static speed_scale_t currentSpeed = SLOWEST;
@@ -58,6 +58,7 @@ static ugv_state_t currentUGV;
 static ugv_state_t desiredUGV;
 static bool joystickReleased = true;
 static bool brakeState = true;
+static unsigned long lastJoystickCommand;
 
 RF24 radio(9,10);
 const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
@@ -105,7 +106,8 @@ void setup(){
   desiredUGV.leftMotor.direction = FORWARD;
   desiredUGV.rightMotor.speed = 0;
   desiredUGV.rightMotor.direction = FORWARD;
-  
+  Serial.begin(9600);
+  delay(2000);
 }
 
 void loop(){
@@ -127,6 +129,10 @@ void loop(){
       desired_to_current_ugv(&desiredUGV,&currentUGV);
       move_ugv(currentUGV);
     }
+    Serial.print(currentJoystick.angle);
+    Serial.print("    ");
+    Serial.println(currentJoystick.magnitude);
+    //delay(100);
   }
 }
 
@@ -175,10 +181,11 @@ error_t init_joystick(){
   currentJoystick.magnitude = 0;
   // Setup radio
   radio.begin(); 
-  //radio.openWritingPipe(pipes[1]);
+  radio.openWritingPipe(pipes[1]);
   radio.openReadingPipe(1,pipes[0]);
   radio.setChannel(65);
   radio.startListening();
+  lastJoystickCommand = millis();
   //insert joystick test checks here
   return SUCCESS;
 }
@@ -263,9 +270,13 @@ void get_joystick(joystick_t *joystick){
   //angle in radians where 0 is directly to the right,
   //going anticlockwise (conventional)
   if(radio.available()){
+    Serial.println("received");
     rf_data_t rfData;
-    while(!radio.read(&rfData,4)){}
-    joystick->magnitude = (float)rfData.rawMag/65535;
-    joystick->angle = ((float)rfData.rawAngle/65535)*2*PI;
+    while(!radio.read(&rfData,8)){}
+    joystick->magnitude = rfData.rawMag;
+    joystick->angle = rfData.rawAngle;
+    lastJoystickCommand = millis();
+  } else if(lastJoystickCommand-millis()>400){
+    joystick->magnitude = 0;
   }
 }
