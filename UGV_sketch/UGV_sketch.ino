@@ -295,6 +295,8 @@ Left Motor behaviour:
 */
 void joystick_to_ugv(joystick_t joystick, ugv_state_t *ugv){
   float pi = 3.1415926535; //I think the constant "PI" is already defined in Arudino?
+  
+  // Setup left and right motor behaviour based on joystick angle.
   // Probably can be simplified somehow. Write a function or two.
   if (joystick.angle >= 0 && joystick.angle < pi/2){
     // QUADRANT ONE
@@ -349,10 +351,15 @@ void joystick_to_ugv(joystick_t joystick, ugv_state_t *ugv){
   else {
     //something wierd has happened...
   }
-
+  // Recale output so speed reflects magnitude of jostick displacement.
+  // Constain is probably not neccessary.
+  //TODO: UNTESTED
+  ugv->leftMotor.speed  = constrain(ugv->leftMotor.speed*joystick->magnitude,0,1);
+  ugv->rightMotor.speed = constrain(ugv->rightMotor.speed*joystick->magnitude,0,1);
 }
 
 void get_joystick(joystick_t *joystick){
+  // For RF24
   //note: must read magntitude scale 0-1 and
   //angle in radians where 0 is directly to the right,
   //going anticlockwise (conventional)
