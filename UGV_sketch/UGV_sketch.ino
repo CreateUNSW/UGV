@@ -1,7 +1,11 @@
 /**
  * UGV driving framework to replace properietary motor controlling system
  * Written by: Nathan Adler
- * Last modified: 21/2/2015
+ * First written: 21/2/2015
+ * Last modified: 13/3/2015 by Austin and Sam. Fixed polar coordinates decoding.  
+ *
+ * Remotely driven with nRF24L01.
+ * For use with UGV_new_joystick.ino
  **/
 
 #include <stdint.h>
@@ -32,6 +36,7 @@ speed_scale_t;
 typedef enum {
   FORWARD,REVERSE} 
 direction_t;
+
 typedef enum {
   LEFT,RIGHT} 
 motor_type_t;
@@ -41,14 +46,14 @@ typedef enum {
 error_t;
 
 typedef struct {
-  float angle; //0-2*PI radians
-  float magnitude;//0-1.0
+  float angle; //-PI to +PI radians
+  float magnitude; // 0 to 1.0
 } 
 joystick_t;
 
 typedef struct {
-  float speed;//0-1.0
-  direction_t direction;//forward or reverse
+  float speed; //0-1.0
+  direction_t direction; //FORWARD or REVERSE
 } 
 motor_state_t;
 
@@ -64,7 +69,7 @@ typedef struct {
 } 
 rf_data_t;
 
-static speed_scale_t currentSpeed = FASTEST;
+static speed_scale_t currentSpeed = FASTEST; //Hardcoded to be fastest for now
 static joystick_t currentJoystick;
 static ugv_state_t currentUGV;
 static ugv_state_t desiredUGV;
@@ -124,31 +129,31 @@ void setup(){
   delay(2000);
 }
 
-
-unsigned long joystickReleaseTime;
-
 void loop(){
-  get_joystick(&currentJoystick);
-  if(currentJoystick.magnitude==0){
-    motors_off();
-    if(joystickReleased==false){
-      joystickReleaseTime = millis();
-      joystickReleased = true;
+  unsigned long joystickReleaseTime;
+  while (1) {
+    get_joystick(&currentJoystick);
+    if(currentJoystick.magnitude==0){
+      motors_off();
+      if(joystickReleased==false){
+        joystickReleaseTime = millis();
+        joystickReleased = true;
+      }
+      if(brakeState==false&&millis()-joystickReleaseTime>400){
+        brakes_engage();
+      }      
+    } 
+    else {
+      joystickReleased = false;  
+      joystick_to_ugv(currentJoystick,&desiredUGV);
+      desired_to_current_ugv(&desiredUGV,&currentUGV);
+      move_ugv(currentUGV);
     }
-    if(brakeState==false&&millis()-joystickReleaseTime>400){
-      brakes_engage();
-    }      
-  } 
-  else {
-    joystickReleased = false;  
-    joystick_to_ugv(currentJoystick,&desiredUGV);
-    desired_to_current_ugv(&desiredUGV,&currentUGV);
-    move_ugv(currentUGV);
+    Serial.print(currentJoystick.angle);
+    Serial.print("    ");
+    Serial.println(currentJoystick.magnitude);
+    delay(10); // This delay should match the delay set in UGV_new_joystick.ino
   }
-  //serial.print(currentJoystick.angle);
-  //serial.print("    ");
-  //serial.println(currentJoystick.magnitude);
-  delay(100);
 }
 
 void move_ugv(ugv_state_t ugv){
@@ -243,6 +248,7 @@ void motors_off(){
 
 void change_speed(speed_scale_t newSpeed){
   currentSpeed = newSpeed;
+  // have a buzzer notification like the mini quads
 }
 
 /**Brake operation code**/
@@ -261,9 +267,35 @@ void brakes_disengage(){
 }
 
 /**Joystick code**/
+/* By Sam and Austin
+NOTE: Forward has been redefined as 0 deg!!!
 
+Angle/quadrant definitons:
+             0
+             |
+        1st  |  4th
+             |
++Pi/2 -------+------- -Pi/2
+             |
+        2nd  |  3rd
+             |
+           +/- Pi
+
+Left Motor behaviour:
+  1st quadrant: speed transitions from full forward to full reverse linearly.
+  2nd quadrant: motor runs at full reverse.
+  3rd quadrant: speed transitions from full forward to full reverse linearly.
+  4th quadrant: motor runs at full forward.
+
+Left Motor behaviour:
+  1st quadrant: motor runs at full forward.
+  2nd quadrant: speed transitions from full forward to full reverse linearly.
+  3rd quadrant: motor runs at full reverse.
+  4th quadrant: speed transitions from full forward to full reverse linearly.
+*/
 void joystick_to_ugv(joystick_t joystick, ugv_state_t *ugv){
-  float pi = 3.14159265;
+  float pi = 3.1415926535; //I think the constant "PI" is already defined in Arudino?
+  // Probably can be simplified somehow. Write a function or two.
   if (joystick.angle >= 0 && joystick.angle < pi/2){
     // QUADRANT ONE
     // forward left
@@ -271,22 +303,26 @@ void joystick_to_ugv(joystick_t joystick, ugv_state_t *ugv){
     ugv->rightMotor.speed = 1;
     if (joystick.angle < pi/4){
       ugv->leftMotor.direction = FORWARD;
-    } else {
+    }
+    else {
       ugv->leftMotor.direction = REVERSE;
     }
     ugv->leftMotor.speed = abs(joystick.angle-pi/4)/(pi/4);
-  } else if (joystick.angle >= pi/2 && joystick.angle <= pi){
+  }
+  else if (joystick.angle >= pi/2 && joystick.angle <= pi){
     // QUADRANT 2
     // back left
     ugv->leftMotor.direction = REVERSE;
     ugv->leftMotor.speed = 1;
     if (joystick.angle < 3*pi/4){
       ugv->rightMotor.direction = FORWARD;
-    } else {
+    }
+    else {
       ugv->rightMotor.direction = REVERSE;
     }
     ugv->rightMotor.speed = abs(joystick.angle-3*pi/4)/(pi/4);
-  } else if (joystick.angle >= -pi/2 && joystick.angle < 0){
+  }
+  else if (joystick.angle >= -pi/2 && joystick.angle < 0){
     // QUADRANT 4
     // forward right
     ugv->leftMotor.direction = FORWARD;
@@ -297,7 +333,8 @@ void joystick_to_ugv(joystick_t joystick, ugv_state_t *ugv){
       ugv->rightMotor.direction = REVERSE;
     }
     ugv->rightMotor.speed = abs(joystick.angle+pi/4)/(pi/4);
-  } else  if (joystick.angle >= -pi && joystick.angle < -pi/2){
+  }
+  else  if (joystick.angle >= -pi && joystick.angle < -pi/2){
     // QUADRANT 3
     // back right
     ugv->rightMotor.direction = REVERSE;
@@ -308,16 +345,18 @@ void joystick_to_ugv(joystick_t joystick, ugv_state_t *ugv){
       ugv->leftMotor.direction = REVERSE;
     }
     ugv->leftMotor.speed = abs(joystick.angle+3*pi/4)/(pi/4);
-  } 
-  
+  }
+  else {
+    //something wierd has happened...
+  }
 
 }
 
 void get_joystick(joystick_t *joystick){
-  //insert joystick reading code here
   //note: must read magntitude scale 0-1 and
   //angle in radians where 0 is directly to the right,
   //going anticlockwise (conventional)
+  //NOTENOTE: 0 radian has been redefined as front...Austin
   if(radio.available()){
     //serial.println("received");
     rf_data_t rfData;

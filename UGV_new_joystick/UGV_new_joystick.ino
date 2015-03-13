@@ -7,9 +7,8 @@ Last modified: 2015 03 13
 
 Operates wirelessly with Nordic Semiconducor nRF24L01 2.4GHz over SPI.
 
-For use with UGV Relay Driver (UGV_relay_RF.ino)
-Use of relays means there is no speed control.
-Hence analogue joystick position is encoded into 32 bit packets and send over RF.
+For use with UGV_sketch.ino
+Analogue joystick position as polar coordinatesis encoded into 32 bit packets and send over RF.
 
 Uses a standard analogue joystick which uses two potentiometers on the two axis.
 
@@ -32,6 +31,7 @@ Should consider debouncing/smoothing if using raw analogue read values.
 #define FIRST_OCTANT 0.7854
 #define THIRD_OCTANT 2.3562
 
+// Structure to for transmitting polar coordinates
 typedef struct {
   float rawMag;
   float rawAngle;
@@ -65,6 +65,7 @@ void loop() {
   // Read inputs
   x = analogRead(HORIZONTAL) - CENTRE_X;
   y = analogRead(VERTICAL) - CENTRE_Y;
+  
   // Convert to polar coordinates
   r = sqrt(x*x + y*y)/512;
  
@@ -74,15 +75,16 @@ void loop() {
   } else {
     r*=abs(sin(theta));
   }
+  
+  // Since the locus of the analogue joystick used is a square,
+  // crop the corners because geometry is tricky...
   rfData.rawMag = min(r,1);
   rfData.rawAngle = theta;
-  // Which quadrant is the joystick in?
- 
   
   // Transmit character over RF
-  // Need to stop and start listening becasue thats how we got it to work...
-  // DISABLED SO IT STOPS FASTER Only transmit if joystick is not at home.
-  if (r>0.05) {
+  // Only transmit if joystick is not at home.
+  if (r>0.05) { // Joystick dead zone
+    // Need to stop and start listening becasue thats how it work...
     radio.stopListening();
     radio.write(&rfData, 8);
     radio.startListening();
@@ -99,5 +101,5 @@ void loop() {
   Serial.print(180* theta/(3.1415926));
   Serial.println(""); 
   
-  delay(100);
+  delay(10); // This delay should match the delay set in UGV_sketch.ino
 }
