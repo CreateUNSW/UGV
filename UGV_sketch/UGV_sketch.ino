@@ -330,8 +330,8 @@ void joystick_to_ugv(joystick_t joystick, ugv_state_t *ugv){
   // Recale output so speed reflects magnitude of jostick displacement.
   // Constain is probably not neccessary.
   //TODO: UNTESTED
-  ugv->leftMotor.speed  = constrain(ugv->leftMotor.speed*joystick->magnitude,0,1);
-  ugv->rightMotor.speed = constrain(ugv->rightMotor.speed*joystick->magnitude,0,1);
+  ugv->leftMotor.speed  = constrain(ugv->leftMotor.speed*joystick.magnitude,0,1);
+  ugv->rightMotor.speed = constrain(ugv->rightMotor.speed*joystick.magnitude,0,1);
 }
 
 void get_joystick(joystick_t *joystick){
