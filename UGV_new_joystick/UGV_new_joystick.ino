@@ -47,7 +47,7 @@ float x, y, r, theta;
 //SoftwareSerial bluetooth(10, 11); //RX, TX
 
 void setup() {
-  Serial.begin(57600);
+  Serial.begin(9600);
   // Setup pins
   //pinMode(VERTICAL, INPUT);
   //pinMode(HORIZONTAL, INPUT);
@@ -101,5 +101,5 @@ void loop() {
   Serial.print(180* theta/(3.1415926));
   Serial.println(""); 
   
-  delay(10); // This delay should match the delay set in UGV_sketch.ino
+ // delay(10); // This delay should match the delay set in UGV_sketch.ino
 }
