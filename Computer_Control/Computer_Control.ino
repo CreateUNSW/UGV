@@ -13,10 +13,8 @@
 #include <string.h>
 
 #include <SPI.h>
-#include <nRF24L01.h>
-#include <RF24.h>
 #include <I2Cdev.h>
-#include <Wire.h>
+#include <Wire.h>1
 #include <AD7746.h>
 
 #define LEFT_MOTOR_DIR_PIN  4
@@ -60,15 +58,14 @@ typedef struct {
   float rawAngle;
 } rf_data_t;
 
-static speed_scale_t currentSpeed = FASTEST; //Hardcoded to be fastest for now
-static joystick_t currentJoystick;
+static speed_scale_t currentSpeed = FASTEST; // Hardcoded to be fastest for now
+static joystick_t currentJoystick;           // Where the bot is currently pointed
 static ugv_state_t currentUGV;
 static ugv_state_t desiredUGV;
 static bool joystickReleased = true;
 static bool brakeState = true;
 static unsigned long lastJoystickCommand;
 
-RF24 radio(9,10);
 const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
 
 /**Function declarations**/
@@ -118,34 +115,59 @@ void setup(){
   delay(2000);
 }
 
+unsigned long joystickReleaseTime;
+
 void loop(){
-  unsigned long joystickReleaseTime;
-  while (1) {
-    get_joystick(&currentJoystick);
-    if(currentJoystick.magnitude==0){
-      motors_off();
-      if(joystickReleased==false){
-        joystickReleaseTime = millis();
-        joystickReleased = true;
-      }
-      if(brakeState==false&&millis()-joystickReleaseTime>400){
-        brakes_engage();
-      }      
-    } else {
-      joystickReleased = false;  
+  /* Loop must:
+               recieve,
+               do,
+               send  */
+  
+  // First the recieve
+  
+  while (Serial.peek() == -1){
+    // wait for an instruction
+    delay(1);
+    if(millis()-lastJoystickCommand>40000){ // TODO MAKE THIS MORE SIMPLE
+      currentJoystick.angle = 0;
+      currentJoystick.magnitude = 0;
       joystick_to_ugv(currentJoystick,&desiredUGV);
       desired_to_current_ugv(&desiredUGV,&currentUGV);
       move_ugv(currentUGV);
-    }
-    Serial.print(currentJoystick.angle);
-    Serial.print("    ");
-    Serial.println(currentJoystick.magnitude);
-    //delay(10); // This delay should match the delay set in UGV_new_joystick.ino
+      brakes_engage();
+    } 
   }
+  
+  // Receive the current joystic coordinates
+  Serial.readBytes((char *) &currentJoystick, 8);
+ 
+  // Do this action
+  if(currentJoystick.magnitude==0){
+    motors_off();
+    if(joystickReleased==false){
+      joystickReleaseTime = millis();
+      joystickReleased = true;
+    }
+    if(brakeState == false && millis()-joystickReleaseTime>400){
+      brakes_engage();
+    }      
+  } else {
+    joystickReleased = false;  
+    joystick_to_ugv(currentJoystick,&desiredUGV);
+    desired_to_current_ugv(&desiredUGV,&currentUGV);
+    move_ugv(currentUGV);
+  }
+  lastJoystickCommand = millis();
+  
+  // TODO Send back sensor data
+  Serial.print("currentJoystick now shows: ");
+  Serial.print(currentJoystick.angle);
+  Serial.print("\t");
+  Serial.println(currentJoystick.magnitude);
 }
 
 void move_ugv(ugv_state_t ugv){
-  // Use "currentState" for this function
+  // Use "currentState" for ths function
   if(brakeState==true){
     brakes_disengage();
   }
@@ -184,15 +206,9 @@ error_t init_brakes(){
 }
 
 error_t init_joystick(){
-  //insert joystick init code here
+  // TODO insert joystick init code here
   currentJoystick.angle = 0;
   currentJoystick.magnitude = 0;
-  // Setup radio
-  radio.begin(); 
-  radio.openWritingPipe(pipes[1]);
-  radio.openReadingPipe(1,pipes[0]);
-  radio.setChannel(65);
-  radio.startListening();
   lastJoystickCommand = millis();
   //insert joystick test checks here
   return SUCCESS;
@@ -335,23 +351,5 @@ void joystick_to_ugv(joystick_t joystick, ugv_state_t *ugv){
   //TODO: UNTESTED
   ugv->leftMotor.speed  = constrain(ugv->leftMotor.speed*joystick.magnitude,0,1);
   ugv->rightMotor.speed = constrain(ugv->rightMotor.speed*joystick.magnitude,0,1);
-}
-
-void get_joystick(joystick_t *joystick){
-  // For RF24
-  //note: must read magntitude scale 0-1 and
-  //angle in radians where 0 is directly to the right,
-  //going anticlockwise (conventional)
-  //NOTENOTE: 0 radian has been redefined as front...Austin
-  if(radio.available()){
-    //serial.println("received");
-    rf_data_t rfData;
-    while(!radio.read(&rfData,8)){}
-    joystick->magnitude = rfData.rawMag;
-    joystick->angle = rfData.rawAngle;
-    lastJoystickCommand = millis();
-  } else if(lastJoystickCommand-millis()>400){
-    joystick->magnitude = 0;
-  }
 }
 
