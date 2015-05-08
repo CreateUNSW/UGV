@@ -29,7 +29,7 @@
 #define LEFT_BRAKE_PIN  6
 #define RIGHT_BRAKE_PIN  7
 
-#define address 0x1E // Bearing: 0011110b, I2C 7bit address of HMC5883
+#define address 0x1E // Accel: 0011110b, I2C 7bit address of HMC5883
 
 typedef enum {
   SLOWEST=51,
@@ -71,11 +71,8 @@ typedef struct _location {
    
 // GPS static stuff
 static const uint32_t GPSBaud = 9600;
-static const int RXPin = 3, TXPin = 4;
 // The TinyGPS++ object
 TinyGPSPlus gps;
-// The serial connection to the GPS device
-SoftwareSerial ss(RXPin, TXPin);
 
 static speed_scale_t currentSpeed = FASTEST; // Hardcoded to be fastest for now
 static joystick_t currentJoystick;           // Where the bot is currently pointed
@@ -121,6 +118,11 @@ void error_check(error_t code){
 }
 
 void setup(){
+  
+  Serial.begin(19200);
+  // GPS software serial
+  Serial1.begin(GPSBaud);
+
   /**Initialize hardware**/
   error_t errorCode;
   errorCode = init_motors();
@@ -135,18 +137,14 @@ void setup(){
   desiredUGV.leftMotor.direction = FORWARD;
   desiredUGV.rightMotor.speed = 0;
   desiredUGV.rightMotor.direction = FORWARD;
-  Serial.begin(9600);
   
-  // GPS software serial
-  ss.begin(GPSBaud);
-  
-  // Bearing
-  /*Wire.begin();
+  // HMC5883L
+  Wire.begin();
   //Put the HMC5883 IC into the correct operating mode
   Wire.beginTransmission(address); //open communication with HMC5883
   Wire.write(0x02); //select mode register
   Wire.write(0x00); //continuous measurement mode
-  Wire.endTransmission();*/
+  Wire.endTransmission();
 
   delay(2000);
 }
@@ -160,7 +158,7 @@ void loop(){
                send  */
   
   // First the recieve
-  
+  /*
   while (Serial.peek() == -1){
     // wait for an instruction
     delay(1);
@@ -194,7 +192,7 @@ void loop(){
     move_ugv(currentUGV);
   }
   lastJoystickCommand = millis();
-  
+  */
   // Send back GPS
   Serial.println(F("Getting location..."));
   printFloat(gps.location.lat(), gps.location.isValid(), 11, 6);
@@ -207,6 +205,34 @@ void loop(){
     Serial.println(F("No GPS data received: check wiring"));
 
   // TODO Send back bearing
+  int x,y,z; //triple axis data
+
+  //Tell the HMC5883L where to begin reading data
+  Wire.beginTransmission(address);
+  Wire.write(0x03); //select register 3, X MSB register
+  Wire.endTransmission();
+ 
+ //Read data from each axis, 2 registers per axis
+  Wire.requestFrom(address, 6);
+  if(6<=Wire.available()){
+    x = Wire.read()<<8; //X msb
+    x |= Wire.read(); //X lsb
+    z = Wire.read()<<8; //Z msb
+    z |= Wire.read(); //Z lsb
+    y = Wire.read()<<8; //Y msb
+    y |= Wire.read(); //Y lsb
+  }
+  
+  //Print out values of each axis
+  Serial.print("x: ");
+  Serial.print(x);
+  Serial.print("  y: ");
+  Serial.print(y);
+  Serial.print("  z: ");
+  Serial.println(z);
+  
+  delay(250);
+
   
   // TODO Send back sensor data
   Serial.print("currentJoystick now shows: ");
@@ -413,8 +439,8 @@ static void smartDelay(unsigned long ms)
   unsigned long start = millis();
   do 
   {
-    while (ss.available())
-      gps.encode(ss.read());
+    while (Serial1.available())
+      gps.encode(Serial1.read());
   } while (millis() - start < ms);
 }
 
