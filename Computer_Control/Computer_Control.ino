@@ -14,8 +14,11 @@
 
 #include <SPI.h>
 #include <I2Cdev.h>
-#include <Wire.h>1
+#include <Wire.h>
 #include <AD7746.h>
+#include <TinyGPS++.h>
+#include <SoftwareSerial.h>
+
 
 #define LEFT_MOTOR_DIR_PIN  4
 #define LEFT_MOTOR_PWM_PIN  5
@@ -25,6 +28,8 @@
 
 #define LEFT_BRAKE_PIN  6
 #define RIGHT_BRAKE_PIN  7
+
+#define address 0x1E // Bearing: 0011110b, I2C 7bit address of HMC5883
 
 typedef enum {
   SLOWEST=51,
@@ -58,6 +63,20 @@ typedef struct {
   float rawAngle;
 } rf_data_t;
 
+typedef struct _location {
+    double lat;
+    double lng;
+    double alt;
+} gps_data;
+   
+// GPS static stuff
+static const uint32_t GPSBaud = 9600;
+static const int RXPin = 3, TXPin = 4;
+// The TinyGPS++ object
+TinyGPSPlus gps;
+// The serial connection to the GPS device
+SoftwareSerial ss(RXPin, TXPin);
+
 static speed_scale_t currentSpeed = FASTEST; // Hardcoded to be fastest for now
 static joystick_t currentJoystick;           // Where the bot is currently pointed
 static ugv_state_t currentUGV;
@@ -86,6 +105,11 @@ void brakes_disengage();
 void joystick_to_ugv(joystick_t joystick, ugv_state_t *ugv);
 void get_joystick(joystick_t *joystick);
 
+// GPS functions
+gps_data getLocation(void);
+// Bearing functions
+
+
 /**Error handler**/
 void error_check(error_t code){
   if(code!=SUCCESS){
@@ -112,6 +136,18 @@ void setup(){
   desiredUGV.rightMotor.speed = 0;
   desiredUGV.rightMotor.direction = FORWARD;
   Serial.begin(9600);
+  
+  // GPS software serial
+  ss.begin(GPSBaud);
+  
+  // Bearing
+  /*Wire.begin();
+  //Put the HMC5883 IC into the correct operating mode
+  Wire.beginTransmission(address); //open communication with HMC5883
+  Wire.write(0x02); //select mode register
+  Wire.write(0x00); //continuous measurement mode
+  Wire.endTransmission();*/
+
   delay(2000);
 }
 
@@ -158,6 +194,19 @@ void loop(){
     move_ugv(currentUGV);
   }
   lastJoystickCommand = millis();
+  
+  // Send back GPS
+  Serial.println(F("Getting location..."));
+  printFloat(gps.location.lat(), gps.location.isValid(), 11, 6);
+  printFloat(gps.location.lng(), gps.location.isValid(), 12, 6);
+  printFloat(gps.altitude.meters(), gps.altitude.isValid(), 7, 2);
+
+  smartDelay(1000);
+
+  if (millis() > 5000 && gps.charsProcessed() < 10)
+    Serial.println(F("No GPS data received: check wiring"));
+
+  // TODO Send back bearing
   
   // TODO Send back sensor data
   Serial.print("currentJoystick now shows: ");
@@ -353,3 +402,47 @@ void joystick_to_ugv(joystick_t joystick, ugv_state_t *ugv){
   ugv->rightMotor.speed = constrain(ugv->rightMotor.speed*joystick.magnitude,0,1);
 }
 
+/* * * *
+*  GPS functions
+*/
+
+// This custom version of delay() ensures that the gps object
+// is being "fed".
+static void smartDelay(unsigned long ms)
+{
+  unsigned long start = millis();
+  do 
+  {
+    while (ss.available())
+      gps.encode(ss.read());
+  } while (millis() - start < ms);
+}
+
+static void printFloat(float val, bool valid, int len, int prec)
+{
+  if (!valid)
+  {
+    while (len-- > 1)
+      Serial.print('*');
+    Serial.print(' ');
+  }
+  else
+  {
+    Serial.print(val, prec);
+    int vi = abs((int)val);
+    int flen = prec + (val < 0.0 ? 2 : 1); // . and -
+    flen += vi >= 1000 ? 4 : vi >= 100 ? 3 : vi >= 10 ? 2 : 1;
+    for (int i=flen; i<len; ++i)
+      Serial.print(' ');
+  }
+  smartDelay(0);
+}
+
+gps_data getLocation(void) {
+  gps_data myGPS;
+  myGPS.lat = gps.location.lat();
+  myGPS.lng = gps.location.lng();
+  myGPS.alt = gps.altitude.meters();
+  
+  return myGPS;
+}
