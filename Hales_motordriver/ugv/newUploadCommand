@@ -1,0 +1,4 @@
+# Connect me to an Arduino setup as an arudinoisp
+# atmel328p with 8MHz internal clock!
+
+/home/debbie/local/arduino-1.6.5-r5/hardware/tools/avr/bin/avrdude -C/home/debbie/local/arduino-1.6.5-r5/hardware/tools/avr/etc/avrdude.conf -v -patmega328p -carduino -P/dev/ttyACM0 -b57600 -D -U flash:w:build-uno/ugv.hex:i
