@@ -50,7 +50,7 @@ void setup()
 	currentCommand.len = 0;
 	lastCommand = 0;
 
-	Serial.begin(115200);
+	Serial.begin(9600);
 	Serial.println("Hey there friend :::)  Type \"[hales]\" to enter debug mode");
 	digitalWrite( LEDred, HIGH);
 }
