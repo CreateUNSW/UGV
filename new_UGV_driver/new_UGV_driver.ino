@@ -50,7 +50,7 @@ void setup()
   lastCommand = 0;
 
   Serial.begin(9600);
-  Serial.println("Hey there friend :::)  Type \"[hales]\" to enter debug mode");
+  //Serial.println("Hey there friend :::)  Type \"[hales]\" to enter debug mode");
 }
 
 void loop()
@@ -61,7 +61,7 @@ void loop()
   {
     char inchar = Serial.read();
     addCharToCommand( &currentCommand, inchar);
-    if ( debugMode ) Serial.print( inchar ); // echo back
+   // if ( debugMode ) Serial.print( inchar ); // echo back: !!! Warning! Breaks ros node as of 16/9/2015
   }
   if ( currentCommand.ready  )
   {
@@ -79,9 +79,6 @@ void loop()
   {
     digitalWrite( LEDblue, LOW  );
   }
-
-  //driverTick( bridgeA );
-  //driverTick( bridgeB );
 }
 
 void addCharToCommand( command_s * command, char inchar )
@@ -189,7 +186,7 @@ void tryCommand( command_s * command )
       Serial.print( getDriverCurrent( bridgeA) );
       Serial.print(" Bridge B: ");
       Serial.println( getDriverCurrent( bridgeB) );*/
-      Serial.println("something failed");
+      //Serial.println("something failed");
     }
   }
 
