@@ -1,5 +1,5 @@
 #define MAX_COMMAND_LENGTH 15 // chars
-#define WATCHDOG_TIMEOUT 500 // milliseconds
+#define WATCHDOG_TIMEOUT 200 // milliseconds
 
 #define LEFT_MOTOR_PIN 2
 #define RIGHT_MOTOR_PIN 3
@@ -205,7 +205,7 @@ void driveMotor(char motor, char sign, int power){
   if(sign=='-'){
     power=-power;
   }
-  power = map(power,-255,255,2500,500);
+  power = map(power,-255,255,2200,800);
   if(motor=='L'){
     leftMotor.writeMicroseconds(power);
   } else {
