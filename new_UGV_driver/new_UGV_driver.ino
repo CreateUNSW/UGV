@@ -1,5 +1,9 @@
+#include <TimerOne.h>
+#include <Servo.h>
+#include "shared.hpp"
+
 #define MAX_COMMAND_LENGTH 15 // chars
-#define WATCHDOG_TIMEOUT 200 // milliseconds
+#define WATCHDOG_TIMEOUT 500 // milliseconds
 
 #define LEFT_MOTOR_PIN 2
 #define RIGHT_MOTOR_PIN 3
@@ -8,11 +12,22 @@
 #define MOTOR_HIGH_MICROS 2000
 #define MOTOR_OFF_MICROS 1500
 
-#include <Servo.h>
-#include "shared.hpp"
+/**
+ * Smooth rate:
+ * Rate of change of control signal to motor.
+ * Change in microseconds of signal per second.
+ * A rate of MOTOR_HIGH_MICROS-MOTOR_OFF_MICROS will go from full speed to stop in one second
+ */
+#define SMOOTH_RATE (MOTOR_HIGH_MICROS-MOTOR_OFF_MICROS)
+
+#define SMOOTH_UPDATE_RATE 10 // rate of ISR update in Hz
+
+#define SMOOTH_STEP (SMOOTH_RATE/SMOOTH_UPDATE_RATE)
 
 // Experimental UGV H-bridge code.
-// Public Domain, Copyright William Hales 2015
+// Based on driver by William Hales
+// Written by Nathan Adler
+// Last edited 3/10/2015
 
 typedef uint32_t time_t;
 
@@ -21,6 +36,45 @@ struct command_s
   char text[MAX_COMMAND_LENGTH]; // does not include '[' or ']'
   unsigned char len;
   bool ready;
+};
+
+class ugv_motor_t {
+  public:
+    ugv_motor_t(uint8_t pin){
+      motor.attach(pin);
+      currentMicros = MOTOR_OFF_MICROS;
+      desiredMicros = MOTOR_OFF_MICROS;
+    };
+    void drive(char sign, int power){
+      if(sign!='-'&&sign!='+'){
+        return;
+      }
+      if(sign=='-'){
+        power=-power;
+      }
+      desiredMicros = map(power,-255,255,MOTOR_HIGH_MICROS,MOTOR_LOW_MICROS);
+      //motor.writeMicroseconds(desiredMicros);
+    }
+    void stop(){
+       motor.writeMicroseconds(MOTOR_OFF_MICROS);
+       desiredMicros = MOTOR_OFF_MICROS;
+       currentMicros = MOTOR_OFF_MICROS;
+    }
+    void smooth(){
+      if(currentMicros==desiredMicros){
+        // do nothing
+      } else if(abs(currentMicros-desiredMicros)<=SMOOTH_STEP){
+        motor.writeMicroseconds(desiredMicros);
+        currentMicros = desiredMicros;
+      } else {
+        currentMicros += (desiredMicros>currentMicros) ? SMOOTH_STEP : -SMOOTH_STEP;
+        motor.writeMicroseconds(currentMicros);
+      }
+    }
+  private:
+    Servo motor;
+    int currentMicros;
+    int desiredMicros;
 };
 
 void addCharToCommand( command_s * command, char inchar );
@@ -33,24 +87,28 @@ int LEDblue = 13;
 // Command watchdog
 time_t lastCommand; // changed only in tryCommand()
 
-Servo leftMotor;
-Servo rightMotor;
 command_s currentCommand;
 
-void driveMotor(char motor, char sign, int power);
+ugv_motor_t leftMotor(LEFT_MOTOR_PIN);
+ugv_motor_t rightMotor(RIGHT_MOTOR_PIN);
+
+void motor_smooth_ISR(){
+  leftMotor.smooth();
+  rightMotor.smooth();
+}
 
 void setup()
 {
   pinMode( LEDblue, OUTPUT);
-
-  leftMotor.attach(LEFT_MOTOR_PIN);
-  rightMotor.attach(RIGHT_MOTOR_PIN);
   currentCommand.ready = false;
   currentCommand.len = 0;
   lastCommand = 0;
 
   Serial.begin(9600);
   //Serial.println("Hey there friend :::)  Type \"[hales]\" to enter debug mode");
+  Timer1.initialize(1000000/SMOOTH_UPDATE_RATE);
+  Timer1.attachInterrupt(motor_smooth_ISR);
+  
 }
 
 void loop()
@@ -71,8 +129,8 @@ void loop()
   if ( !debugMode && now >= lastCommand + WATCHDOG_TIMEOUT )
   {
     // We have not recieved commands in a while
-    leftMotor.writeMicroseconds(MOTOR_OFF_MICROS);
-    rightMotor.writeMicroseconds(MOTOR_OFF_MICROS);
+    leftMotor.stop();
+    rightMotor.stop();
     digitalWrite( LEDblue, HIGH );
   }
   else
@@ -140,8 +198,8 @@ void tryCommand( command_s * command )
       {
         //setDriverTargets( bridgeA, numberAsign, numberA);
         //setDriverTargets( bridgeB, numberBsign, numberB);
-        driveMotor('L',command->text[0],(int)numberA);
-        driveMotor('R',command->text[3],(int)numberB);
+        leftMotor.drive(command->text[0],(int)numberA);
+        rightMotor.drive(command->text[3],(int)numberB);
         lastCommand = millis();
       }
     }
@@ -189,26 +247,6 @@ void tryCommand( command_s * command )
       //Serial.println("something failed");
     }
   }
-
-
   command->len = 0;
   command->ready = false;
-}
-
-void driveMotor(char motor, char sign, int power){
-  if(motor!='L'&&motor!='R'){ 
-    return;
-  }
-  if(sign!='-'&&sign!='+'){
-    return;
-  }
-  if(sign=='-'){
-    power=-power;
-  }
-  power = map(power,-255,255,2200,800);
-  if(motor=='L'){
-    leftMotor.writeMicroseconds(power);
-  } else {
-    rightMotor.writeMicroseconds(power);
-  }
 }
