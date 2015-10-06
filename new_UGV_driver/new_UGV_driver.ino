@@ -13,7 +13,7 @@
 #define MOTOR_OFF_MICROS 1500
 
 /**
- * Smooth rate:
+ * SMOOTH_RATE:
  * Rate of change of control signal to motor.
  * Change in microseconds of signal per second.
  * A rate of MOTOR_HIGH_MICROS-MOTOR_OFF_MICROS will go from full speed to stop in one second
@@ -21,7 +21,6 @@
 #define SMOOTH_RATE (MOTOR_HIGH_MICROS-MOTOR_OFF_MICROS)
 
 #define SMOOTH_UPDATE_RATE 10 // rate of ISR update in Hz
-
 #define SMOOTH_STEP (SMOOTH_RATE/SMOOTH_UPDATE_RATE)
 
 // Experimental UGV H-bridge code.
@@ -40,11 +39,13 @@ struct command_s
 
 class ugv_motor_t {
   public:
-    ugv_motor_t(uint8_t pin){
+    ugv_motor_t(){}
+    void initialize(uint8_t pin){
       motor.attach(pin);
+      motor.writeMicroseconds(MOTOR_OFF_MICROS);
       currentMicros = MOTOR_OFF_MICROS;
       desiredMicros = MOTOR_OFF_MICROS;
-    };
+    }
     void drive(char sign, int power){
       if(sign!='-'&&sign!='+'){
         return;
@@ -71,10 +72,11 @@ class ugv_motor_t {
         motor.writeMicroseconds(currentMicros);
       }
     }
-  private:
+ 
     Servo motor;
     int currentMicros;
     int desiredMicros;
+     private:
 };
 
 void addCharToCommand( command_s * command, char inchar );
@@ -89,8 +91,8 @@ time_t lastCommand; // changed only in tryCommand()
 
 command_s currentCommand;
 
-ugv_motor_t leftMotor(LEFT_MOTOR_PIN);
-ugv_motor_t rightMotor(RIGHT_MOTOR_PIN);
+ugv_motor_t leftMotor;
+ugv_motor_t rightMotor;
 
 void motor_smooth_ISR(){
   leftMotor.smooth();
@@ -103,6 +105,8 @@ void setup()
   currentCommand.ready = false;
   currentCommand.len = 0;
   lastCommand = 0;
+  leftMotor.initialize(LEFT_MOTOR_PIN);
+  rightMotor.initialize(RIGHT_MOTOR_PIN);
 
   Serial.begin(9600);
   //Serial.println("Hey there friend :::)  Type \"[hales]\" to enter debug mode");
@@ -240,10 +244,10 @@ void tryCommand( command_s * command )
 
     if (!failed)
     {
-      /*Serial.print("Bridge A: ");
-      Serial.print( getDriverCurrent( bridgeA) );
-      Serial.print(" Bridge B: ");
-      Serial.println( getDriverCurrent( bridgeB) );*/
+      //Serial.print("Bridge A: ");
+      //Serial.print( getDriverCurrent( bridgeA) );
+      //Serial.print(" Bridge B: ");
+      //Serial.println( getDriverCurrent( bridgeB) );
       //Serial.println("something failed");
     }
   }
